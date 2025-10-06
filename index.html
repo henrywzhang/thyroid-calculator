@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Thyroid Cancer Survival Risk Calculator (CoxPH)</title>
+<style>
+  :root { --bg:#0b1020; --card:#131a33; --muted:#9fb1ff; --text:#e9edff; --accent:#8ab4ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, Arial, sans-serif; background:linear-gradient(180deg,#0a0f24,#0e1631 30%,#0b1020); color:var(--text); }
+  .wrap { max-width: 920px; margin: 40px auto; padding: 0 16px; }
+  h1 { font-size: 28px; margin: 0 0 12px; }
+  p.lead { color: var(--muted); margin: 0 0 24px; }
+  .card { background: linear-gradient(180deg, #151c3b, #121937); border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 16px; padding: 20px; margin-bottom: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+  .grid { display: grid; gap: 16px; }
+  @media (min-width: 760px){ .grid-2 { grid-template-columns: 1fr 1fr; } .grid-3 { grid-template-columns: 1fr 1fr 1fr; } }
+  label { font-size: 12px; color: var(--muted); display:block; margin-bottom:6px; }
+  input[type="number"], select {
+    width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(6,10,30,.6); color: var(--text); outline: none;
+  }
+  .row { display:flex; gap:10px; align-items:center; }
+  .kpi { border:1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px; }
+  .kpi .t { font-size:12px; color:var(--muted); }
+  .kpi .v { font-size:22px; margin-top:4px; }
+  .btn { padding: 10px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15);
+         background: rgba(138,180,255,.1); color: var(--text); cursor: pointer; }
+  .note { font-size: 12px; color: var(--muted); }
+  .accent { color: var(--accent); }
+  .footer { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .hr { height:1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); margin: 10px 0; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Thyroid Cancer Survival Risk Calculator</h1>
+    <p class="lead">CoxPH-based relative hazard using published coefficients. Research/education only — not for clinical use.</p>
+
+    <div class="card">
+      <h3>Patient Inputs</h3>
+      <div class="grid grid-2">
+        <div>
+          <label>Age (years)</label>
+          <input id="age" type="number" min="0" max="110" step="1" value="50">
+        </div>
+        <div>
+          <label>Sex</label>
+          <select id="sex">
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Marital Status</label>
+          <select id="marital">
+            <option value="single">Single</option>
+            <option value="married">Married</option>
+            <option value="dsw">Divorced / Separated / Widowed</option>
+          </select>
+        </div>
+        <div>
+          <label>Surgery of Primary Site</label>
+          <select id="surgery">
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Radiation</label>
+          <select id="radiation">
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+        <div>
+          <label>CS Extension (0–700)</label>
+          <input id="cs" type="number" min="0" max="700" step="1" value="0">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between;">
+        <h3>Reference Profile (for Relative Hazard)</h3>
+        <label class="row" style="gap:6px;cursor:pointer;">
+          <input id="useRef" type="checkbox"> <span>Use custom reference</span>
+        </label>
+      </div>
+      <div id="refBox" class="grid grid-2" style="display:none;">
+        <div>
+          <label>Ref Age</label>
+          <input id="ref_age" type="number" min="0" max="110" step="1" value="50">
+        </div>
+        <div>
+          <label>Ref Sex</label>
+          <select id="ref_sex">
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
+        </div>
+        <div>
+          <label>Ref Marital</label>
+          <select id="ref_marital">
+            <option value="single">Single</option>
+            <option value="married">Married</option>
+            <option value="dsw">Divorced / Separated / Widowed</option>
+          </select>
+        </div>
+        <div>
+          <label>Ref Surgery</label>
+          <select id="ref_surgery">
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+        <div>
+          <label>Ref Radiation</label>
+          <select id="ref_radiation">
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+        <div>
+          <label>Ref CS Extension</label>
+          <input id="ref_cs" type="number" min="0" max="700" step="1" value="0">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Results</h3>
+      <div class="grid grid-3">
+        <div class="kpi">
+          <div class="t">Linear Predictor (β·x)</div>
+          <div class="v" id="lp">0.000</div>
+        </div>
+        <div class="kpi">
+          <div class="t">Relative Hazard vs Reference</div>
+          <div class="v"><span id="hr">1.00</span>×</div>
+          <div class="note" id="band">Average relative risk</div>
+        </div>
+        <div class="kpi">
+          <div class="t">Reference Mode</div>
+          <div class="v" id="refMode">Arbitrary baseline</div>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <h4>Advanced: Estimate Absolute Survival</h4>
+      <div class="grid grid-3">
+        <div>
+          <label>Time Horizon (years)</label>
+          <input id="years" type="number" min="1" max="10" step="1" value="5">
+        </div>
+        <div>
+          <label>Baseline Survival for <span class="accent">Reference</span> at this horizon (S_ref)</label>
+          <input id="sref" type="number" step="0.0001" min="0.0001" max="0.9999" value="0.981">
+        </div>
+        <div class="kpi">
+          <div class="t">Estimated Absolute Survival</div>
+          <div class="v" id="abs">—</div>
+          <div class="note">S_patient(t) = S_ref(t)^{exp(β·x − β·x_ref)}</div>
+        </div>
+      </div>
+
+      <div style="margin-top:14px;">
+        <button class="btn" onclick="window.print()">Print / Save as PDF</button>
+      </div>
+      <div class="footer">
+        Coefficients from study Table 2. This tool is for research and educational purposes only.
+      </div>
+    </div>
+  </div>
+
+<script>
+  // CoxPH betas (log-HR)
+  const BETA = {
+    age: 0.06825,
+    sexFemale: -0.44863,      // ref male
+    maritalMarried: -0.29979, // ref single
+    maritalDSW: -0.05263,     // ref single
+    surgeryNo: 1.68626,       // ref yes
+    radiationNo: -0.00365,    // ref yes
+    csExtension: 0.00244
+  };
+
+  const els = id => document.getElementById(id);
+  const inputs = [
+    'age','sex','marital','surgery','radiation','cs',
+    'useRef','ref_age','ref_sex','ref_marital','ref_surgery','ref_radiation','ref_cs',
+    'years','sref'
+  ].map(els);
+
+  const refBox = els('refBox'), lpOut = els('lp'), hrOut = els('hr'), bandOut = els('band'),
+        refMode = els('refMode'), absOut = els('abs');
+
+  function lpFromFields(age, sex, marital, surgery, radiation, cs){
+    let v = 0;
+    v += BETA.age * age;
+    if (sex === 'female') v += BETA.sexFemale;
+    if (marital === 'married') v += BETA.maritalMarried;
+    else if (marital === 'dsw') v += BETA.maritalDSW;
+    if (surgery === 'no') v += BETA.surgeryNo;
+    if (radiation === 'no') v += BETA.radiationNo;
+    v += BETA.csExtension * cs;
+    return v;
+  }
+
+  function band(hr){
+    if (hr < 0.75) return 'Lower relative risk';
+    if (hr <= 1.25) return 'Average relative risk';
+    if (hr <= 2.0) return 'Higher relative risk';
+    return 'Much higher relative risk';
+  }
+
+  function calc(){
+    const age = +els('age').value || 0;
+    const sex = els('sex').value;
+    const marital = els('marital').value;
+    const surgery = els('surgery').value;
+    const radiation = els('radiation').value;
+    const cs = +els('cs').value || 0;
+
+    const useRef = els('useRef').checked;
+    refBox.style.display = useRef ? 'grid' : 'none';
+    refMode.textContent = useRef ? 'Custom profile' : 'Arbitrary baseline';
+
+    const lp = lpFromFields(age, sex, marital, surgery, radiation, cs);
+
+    let lpRef = 0;
+    if (useRef){
+      const r_age = +els('ref_age').value || 0;
+      const r_sex = els('ref_sex').value;
+      const r_marital = els('ref_marital').value;
+      const r_surgery = els('ref_surgery').value;
+      const r_radiation = els('ref_radiation').value;
+      const r_cs = +els('ref_cs').value || 0;
+      lpRef = lpFromFields(r_age, r_sex, r_marital, r_surgery, r_radiation, r_cs);
+    }
+
+    const hr = Math.exp(lp - lpRef);
+    lpOut.textContent = lp.toFixed(3);
+    hrOut.textContent = hr.toFixed(2);
+    bandOut.textContent = band(hr);
+
+    // absolute survival estimate
+    const sref = +els('sref').value;
+    if (sref > 0 && sref < 1){
+      const sPatient = Math.pow(sref, Math.exp(lp - lpRef));
+      absOut.textContent = `${(sPatient*100).toFixed(2)}% at ${(+els('years').value||5)} years`;
+    } else {
+      absOut.textContent = '—';
+    }
+  }
+
+  inputs.forEach(el => el.addEventListener('input', calc));
+  calc();
+</script>
+</body>
+</html>
